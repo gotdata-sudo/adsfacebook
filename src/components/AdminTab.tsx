@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_RULES,
@@ -70,6 +70,26 @@ export default function AdminTab({
   const [rulesDraft, setRulesDraft] = useState<Rules>(rules);
   const [savingRules, setSavingRules] = useState(false);
   const [newOverrideType, setNewOverrideType] = useState("");
+  const [uploaderFilter, setUploaderFilter] = useState("__all__");
+
+  const personStats = useMemo(() => {
+    type PersonStat = { email: string; name: string; uploads: number; rows: number; good: number; warn: number; bad: number; spend: number };
+    const map = new Map<string, PersonStat>();
+    uploads.forEach((u) => {
+      const s = map.get(u.uploader_email) ?? { email: u.uploader_email, name: u.uploader_name, uploads: 0, rows: 0, good: 0, warn: 0, bad: 0, spend: 0 };
+      s.uploads += 1;
+      u.rows.forEach((r) => {
+        s.rows += 1;
+        s.spend += r.amountSpent ?? 0;
+        const v = evaluateRow(r, rules).verdict;
+        if (v === "good" || v === "warn" || v === "bad") s[v] += 1;
+      });
+      map.set(u.uploader_email, s);
+    });
+    return Array.from(map.values()).sort((a, b) => b.rows - a.rows);
+  }, [uploads, rules]);
+
+  const filteredUploads = uploaderFilter === "__all__" ? uploads : uploads.filter((u) => u.uploader_email === uploaderFilter);
 
   function addTier() {
     setRulesDraft((d) => {
@@ -376,12 +396,65 @@ export default function AdminTab({
       </div>
 
       <div className="bg-surface border border-line rounded-card shadow-sm p-5">
-        <h2 className="text-[17px] font-semibold font-display mb-3">จัดการชุดข้อมูล</h2>
-        {uploads.length === 0 ? (
+        <h2 className="text-[17px] font-semibold font-display mb-1">สถิติรายคน</h2>
+        <p className="text-inkDim text-[13.5px] mb-3">ภาพรวมผลงานของแต่ละคนที่เคยอัปโหลดข้อมูล</p>
+        {personStats.length === 0 ? (
+          <p className="text-inkFaint text-[13px]">ยังไม่มีข้อมูล</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="border-collapse w-full text-[13px]">
+              <thead>
+                <tr>
+                  <th className="th">คน</th>
+                  <th className="th">ชุดข้อมูล</th>
+                  <th className="th">แอดเซ็ตทั้งหมด</th>
+                  <th className="th">ยอดใช้จ่ายรวม</th>
+                  <th className="th text-good">เปิดต่อ</th>
+                  <th className="th text-warn">เฝ้าระวัง</th>
+                  <th className="th text-bad">ควรปิด</th>
+                </tr>
+              </thead>
+              <tbody>
+                {personStats.map((s) => (
+                  <tr key={s.email} className="hover:bg-surface2 cursor-pointer" onClick={() => setUploaderFilter(s.email)}>
+                    <td className="td">
+                      {s.name} <span className="text-inkFaint text-[12px]">· {s.email}</span>
+                    </td>
+                    <td className="td font-mono">{s.uploads}</td>
+                    <td className="td font-mono">{s.rows}</td>
+                    <td className="td font-mono">{s.spend.toLocaleString("th-TH", { maximumFractionDigits: 0 })}</td>
+                    <td className="td font-mono text-good">{s.good}</td>
+                    <td className="td font-mono text-warn">{s.warn}</td>
+                    <td className="td font-mono text-bad">{s.bad}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-surface border border-line rounded-card shadow-sm p-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <h2 className="text-[17px] font-semibold font-display m-0">จัดการชุดข้อมูล</h2>
+          <select
+            value={uploaderFilter}
+            onChange={(e) => setUploaderFilter(e.target.value)}
+            className="px-2.5 py-2 rounded-lg border border-lineStrong bg-surface text-[13px]"
+          >
+            <option value="__all__">ทุกคน</option>
+            {personStats.map((s) => (
+              <option key={s.email} value={s.email}>
+                {s.name} ({s.email})
+              </option>
+            ))}
+          </select>
+        </div>
+        {filteredUploads.length === 0 ? (
           <p className="text-inkFaint text-[13px]">ยังไม่มีชุดข้อมูล</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {uploads.map((u) => (
+            {filteredUploads.map((u) => (
               <div key={u.id} className="flex items-center gap-3.5 p-3.5 border border-line rounded-xl bg-surface">
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-[13.5px]">
@@ -389,6 +462,7 @@ export default function AdminTab({
                   </div>
                   <div className="text-[12px] text-inkFaint mt-0.5">
                     {u.rows.length} แอดเซ็ต · {u.uploader_email}
+                    {u.note && ` · ${u.note}`}
                   </div>
                 </div>
                 <button onClick={() => deleteBatch(u.id)} className="text-bad border border-bad/30 rounded-md px-3 py-1.5 text-[12.5px] font-semibold">

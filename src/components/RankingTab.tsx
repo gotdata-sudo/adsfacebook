@@ -32,9 +32,19 @@ export default function RankingTab({
 }) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
+  const uploaders = useMemo(() => {
+    const map = new Map<string, string>();
+    uploads.forEach((u) => map.set(u.uploader_email, u.uploader_name));
+    return Array.from(map.entries()).map(([email, name]) => ({ email, name }));
+  }, [uploads]);
+
   const items = useMemo(() => {
     if (scope === "__all__") {
       return uploads.flatMap((u) => u.rows.map((row) => ({ row, batch: u })));
+    }
+    if (scope.startsWith("person:")) {
+      const email = scope.slice("person:".length);
+      return uploads.filter((u) => u.uploader_email === email).flatMap((u) => u.rows.map((row) => ({ row, batch: u })));
     }
     const u = uploads.find((x) => x.id === scope);
     if (!u) return [];
@@ -47,7 +57,7 @@ export default function RankingTab({
     return list;
   }, [items, rules]);
 
-  const showBatch = scope === "__all__";
+  const showBatch = scope === "__all__" || scope.startsWith("person:");
 
   return (
     <div className="flex flex-col gap-5">
@@ -59,11 +69,20 @@ export default function RankingTab({
           className="px-2.5 py-2 rounded-lg border border-lineStrong bg-surface text-[13px]"
         >
           <option value="__all__">ภาพรวมทั้งหมด (ทุกชุด)</option>
-          {uploads.map((u) => (
-            <option key={u.id} value={u.id}>
-              {fmtDate(u.created_at)} · {u.uploader_name} · {u.rows.length} แอดเซ็ต{u.note ? ` · ${u.note}` : ""}
-            </option>
-          ))}
+          <optgroup label="ตามคน">
+            {uploaders.map((p) => (
+              <option key={p.email} value={`person:${p.email}`}>
+                {p.name} ({p.email})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="ตามชุด">
+            {uploads.map((u) => (
+              <option key={u.id} value={u.id}>
+                {fmtDate(u.created_at)} · {u.uploader_name} · {u.rows.length} แอดเซ็ต{u.note ? ` · ${u.note}` : ""}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </div>
 
