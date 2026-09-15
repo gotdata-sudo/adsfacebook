@@ -25,6 +25,12 @@ const config: Config = {
         badBg: "rgb(var(--bad-bg) / <alpha-value>)",
         info: "rgb(var(--info) / <alpha-value>)",
         infoBg: "rgb(var(--info-bg) / <alpha-value>)",
+        sidebarBg: "rgb(var(--sidebar-bg) / <alpha-value>)",
+        sidebarSurface2: "rgb(var(--sidebar-surface-2) / <alpha-value>)",
+        sidebarInk: "rgb(var(--sidebar-ink) / <alpha-value>)",
+        sidebarInkDim: "rgb(var(--sidebar-ink-dim) / <alpha-value>)",
+        sidebarActiveBg: "rgb(var(--sidebar-active-bg) / <alpha-value>)",
+        sidebarActiveInk: "rgb(var(--sidebar-active-ink) / <alpha-value>)",
       },
       fontFamily: {
         display: ["var(--font-kanit)", "system-ui", "sans-serif"],
@@ -32,7 +38,7 @@ const config: Config = {
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        card: "10px",
+        card: "20px",
       },
     },
   },

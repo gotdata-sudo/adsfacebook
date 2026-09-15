@@ -37,7 +37,7 @@ export default function PickBanner({ rows, rules }: { rows: AdRow[]; rules: Rule
 function Icon({ muted }: { muted?: boolean }) {
   return (
     <div
-      className={`w-10 h-10 rounded-[8px] flex items-center justify-center flex-none ${
+      className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-none ${
         muted ? "bg-surface2 text-inkFaint" : "bg-accentInk/15 text-accentInk"
       }`}
     >

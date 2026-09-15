@@ -2,73 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-/* "Signal panel" palette: warm charcoal ink + an antique-gold brand accent,
-   with confident (not pastel) red/amber/green verdict colors, since those
-   verdicts are the entire point of this tool. */
+/* Dashboard-app palette: a dark sidebar that stays dark regardless of
+   theme (matches the reference), a light/white content area that still
+   respects light/dark preference, and a chartreuse-lime brand accent.
+   Verdict colors (good/warn/bad) stay confident, not pastel, since those
+   calls are the entire point of this tool. */
 :root {
-  --bg: 236 236 231;
+  --bg: 244 244 240;
   --surface: 255 255 255;
-  --surface-2: 227 226 219;
-  --ink: 26 24 20;
-  --ink-dim: 92 88 80;
-  --ink-faint: 142 137 127;
-  --line: 218 216 206;
-  --line-strong: 191 188 175;
-  --accent: 138 100 10;
-  --accent-ink: 253 247 235;
-  --accent-dim: 240 226 199;
-  --good: 40 130 74;
-  --good-bg: 222 238 224;
-  --warn: 199 88 26;
-  --warn-bg: 250 231 217;
-  --bad: 199 51 51;
+  --surface-2: 235 235 229;
+  --ink: 24 26 20;
+  --ink-dim: 96 98 88;
+  --ink-faint: 148 148 138;
+  --line: 226 226 218;
+  --line-strong: 202 202 190;
+  --accent: 214 242 74;
+  --accent-ink: 22 26 12;
+  --accent-dim: 240 249 202;
+  --good: 34 139 84;
+  --good-bg: 222 240 227;
+  --warn: 199 108 26;
+  --warn-bg: 250 232 214;
+  --bad: 201 55 55;
   --bad-bg: 250 227 227;
   --info: 71 104 173;
   --info-bg: 228 234 246;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Sidebar chrome — intentionally not part of the light/dark toggle above. */
+  --sidebar-bg: 21 23 19;
+  --sidebar-surface-2: 32 35 29;
+  --sidebar-ink: 245 245 240;
+  --sidebar-ink-dim: 150 152 141;
+  --sidebar-active-bg: 255 255 255;
+  --sidebar-active-ink: 22 24 18;
 }
 
 .dark {
-  --bg: 20 19 16;
-  --surface: 30 28 24;
-  --surface-2: 40 37 31;
-  --ink: 240 236 227;
-  --ink-dim: 176 169 155;
-  --ink-faint: 122 116 104;
-  --line: 54 50 42;
-  --line-strong: 74 68 56;
-  --accent: 214 165 61;
-  --accent-ink: 30 22 4;
-  --accent-dim: 58 46 21;
-  --good: 90 199 130;
-  --good-bg: 20 46 30;
-  --warn: 224 140 71;
-  --warn-bg: 54 33 16;
+  --bg: 19 20 17;
+  --surface: 29 30 26;
+  --surface-2: 39 41 34;
+  --ink: 238 238 231;
+  --ink-dim: 172 172 160;
+  --ink-faint: 118 118 106;
+  --line: 52 52 44;
+  --line-strong: 71 71 60;
+  --accent: 214 242 74;
+  --accent-ink: 22 26 12;
+  --accent-dim: 54 58 30;
+  --good: 96 199 137;
+  --good-bg: 22 46 32;
+  --warn: 224 150 84;
+  --warn-bg: 55 36 18;
   --bad: 224 108 104;
-  --bad-bg: 51 22 21;
+  --bad-bg: 51 24 23;
   --info: 130 163 224;
   --info-bg: 22 33 54;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --bg: 20 19 16;
-    --surface: 30 28 24;
-    --surface-2: 40 37 31;
-    --ink: 240 236 227;
-    --ink-dim: 176 169 155;
-    --ink-faint: 122 116 104;
-    --line: 54 50 42;
-    --line-strong: 74 68 56;
-    --accent: 214 165 61;
-    --accent-ink: 30 22 4;
-    --accent-dim: 58 46 21;
-    --good: 90 199 130;
-    --good-bg: 20 46 30;
-    --warn: 224 140 71;
-    --warn-bg: 54 33 16;
+    --bg: 19 20 17;
+    --surface: 29 30 26;
+    --surface-2: 39 41 34;
+    --ink: 238 238 231;
+    --ink-dim: 172 172 160;
+    --ink-faint: 118 118 106;
+    --line: 52 52 44;
+    --line-strong: 71 71 60;
+    --accent: 214 242 74;
+    --accent-ink: 22 26 12;
+    --accent-dim: 54 58 30;
+    --good: 96 199 137;
+    --good-bg: 22 46 32;
+    --warn: 224 150 84;
+    --warn-bg: 55 36 18;
     --bad: 224 108 104;
-    --bad-bg: 51 22 21;
+    --bad-bg: 51 24 23;
     --info: 130 163 224;
     --info-bg: 22 33 54;
   }
