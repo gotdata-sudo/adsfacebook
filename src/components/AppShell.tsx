@@ -164,7 +164,7 @@ export default function AppShell({
           <UploadTab user={user} rules={rules} brands={brands} supabase={supabase} onSaved={refreshUploads} toast={toast} />
         )}
         {tab === "ranking" && (
-          <RankingTab uploads={uploads} rules={rules} scope={rankingScope} setScope={setRankingScope} />
+          <RankingTab uploads={uploads} rules={rules} scope={rankingScope} setScope={setRankingScope} isAdmin={amAdmin} />
         )}
         {tab === "history" && <HistoryTab uploads={uploads} rules={rules} me={user.email} onOpen={openBatchInRanking} />}
         {tab === "dashboard" && <DashboardTab uploads={uploads} rules={rules} />}

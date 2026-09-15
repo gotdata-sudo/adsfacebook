@@ -24,32 +24,48 @@ export default function RankingTab({
   rules,
   scope,
   setScope,
+  isAdmin,
 }: {
   uploads: Upload[];
   rules: Rules;
   scope: string;
   setScope: (s: string) => void;
+  isAdmin: boolean;
 }) {
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [brandFilter, setBrandFilter] = useState("__all__");
+
+  const brands = useMemo(() => {
+    const set = new Set<string>();
+    uploads.forEach((u) => u.brand && set.add(u.brand));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [uploads]);
+
+  const visibleUploads = useMemo(
+    () => (brandFilter === "__all__" ? uploads : uploads.filter((u) => (u.brand ?? "") === brandFilter)),
+    [uploads, brandFilter]
+  );
 
   const uploaders = useMemo(() => {
     const map = new Map<string, string>();
-    uploads.forEach((u) => map.set(u.uploader_email, u.uploader_name));
+    visibleUploads.forEach((u) => map.set(u.uploader_email, u.uploader_name));
     return Array.from(map.entries()).map(([email, name]) => ({ email, name }));
-  }, [uploads]);
+  }, [visibleUploads]);
+
+  const effectiveScope = !isAdmin && scope.startsWith("person:") ? "__all__" : scope;
 
   const items = useMemo(() => {
-    if (scope === "__all__") {
-      return uploads.flatMap((u) => u.rows.map((row) => ({ row, batch: u })));
+    if (effectiveScope === "__all__") {
+      return visibleUploads.flatMap((u) => u.rows.map((row) => ({ row, batch: u })));
     }
-    if (scope.startsWith("person:")) {
-      const email = scope.slice("person:".length);
-      return uploads.filter((u) => u.uploader_email === email).flatMap((u) => u.rows.map((row) => ({ row, batch: u })));
+    if (effectiveScope.startsWith("person:")) {
+      const email = effectiveScope.slice("person:".length);
+      return visibleUploads.filter((u) => u.uploader_email === email).flatMap((u) => u.rows.map((row) => ({ row, batch: u })));
     }
-    const u = uploads.find((x) => x.id === scope);
+    const u = visibleUploads.find((x) => x.id === effectiveScope);
     if (!u) return [];
     return u.rows.map((row) => ({ row, batch: u }));
-  }, [uploads, scope]);
+  }, [visibleUploads, effectiveScope]);
 
   const evaluated = useMemo(() => {
     const list = items.map((x) => ({ ...x, v: evaluateRow(x.row, rules) }));
@@ -57,33 +73,49 @@ export default function RankingTab({
     return list;
   }, [items, rules]);
 
-  const showBatch = scope === "__all__" || scope.startsWith("person:");
+  const showBatch = effectiveScope === "__all__" || effectiveScope.startsWith("person:");
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="font-display text-[19px] font-semibold m-0">เส้นทางที่ดีที่สุด</h1>
-        <select
-          value={scope}
-          onChange={(e) => setScope(e.target.value)}
-          className="px-2.5 py-2 rounded-lg border border-lineStrong bg-surface text-[13px]"
-        >
-          <option value="__all__">ภาพรวมทั้งหมด (ทุกชุด)</option>
-          <optgroup label="ตามคน">
-            {uploaders.map((p) => (
-              <option key={p.email} value={`person:${p.email}`}>
-                {p.name} ({p.email})
+        <div className="flex gap-2 flex-wrap">
+          <select
+            value={brandFilter}
+            onChange={(e) => setBrandFilter(e.target.value)}
+            className="px-2.5 py-2 rounded-lg border border-lineStrong bg-surface text-[13px]"
+          >
+            <option value="__all__">ทุกแบรนด์</option>
+            {brands.map((b) => (
+              <option key={b} value={b}>
+                {b}
               </option>
             ))}
-          </optgroup>
-          <optgroup label="ตามชุด">
-            {uploads.map((u) => (
-              <option key={u.id} value={u.id}>
-                {fmtDate(u.created_at)} · {u.uploader_name} · {u.rows.length} แอดเซ็ต{u.note ? ` · ${u.note}` : ""}
-              </option>
-            ))}
-          </optgroup>
-        </select>
+          </select>
+          <select
+            value={effectiveScope}
+            onChange={(e) => setScope(e.target.value)}
+            className="px-2.5 py-2 rounded-lg border border-lineStrong bg-surface text-[13px]"
+          >
+            <option value="__all__">ภาพรวมทั้งหมด (ทุกชุด)</option>
+            {isAdmin && (
+              <optgroup label="ตามคน">
+                {uploaders.map((p) => (
+                  <option key={p.email} value={`person:${p.email}`}>
+                    {p.name} ({p.email})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="ตามชุด">
+              {visibleUploads.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {fmtDate(u.created_at)} · {u.uploader_name} · {u.rows.length} แอดเซ็ต{u.note ? ` · ${u.note}` : ""}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
       </div>
 
       {items.length === 0 ? (
