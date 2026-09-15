@@ -62,6 +62,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (user && !isPublic) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("blocked")
+      .eq("email", (user.email ?? "").toLowerCase())
+      .maybeSingle();
+    if (profile?.blocked) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "blocked");
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (user && path === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";

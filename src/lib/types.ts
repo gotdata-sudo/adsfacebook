@@ -6,6 +6,7 @@ export type Upload = {
   uploader_name: string;
   created_at: string;
   note: string | null;
+  brand: string | null;
   asset_paths: string[];
   rows: AdRow[];
 };
@@ -13,4 +14,12 @@ export type Upload = {
 export type AppSettingsRow = {
   key: string;
   value: unknown;
+};
+
+export type Profile = {
+  email: string;
+  name: string;
+  first_seen: string;
+  last_seen: string;
+  blocked: boolean;
 };

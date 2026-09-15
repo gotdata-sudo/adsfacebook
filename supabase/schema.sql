@@ -12,19 +12,36 @@ create table if not exists public.uploads (
   uploader_name text not null,
   created_at timestamptz not null default now(),
   note text,
+  brand text,
   rows jsonb not null default '[]'::jsonb,
   asset_paths text[] not null default '{}'
 );
+
+-- Existing installs: add the column that didn't exist before brand tracking.
+alter table public.uploads add column if not exists brand text;
 
 create index if not exists uploads_created_at_idx on public.uploads (created_at desc);
 
 -- Generic key/value store for admin-editable app settings:
 --   key = 'admins' -> {"emails": ["a@bananaandco.org", ...]}
 --   key = 'rules'  -> the Rules object from src/lib/rules.ts
+--   key = 'brands' -> {"names": ["Brand A", "Brand B", ...]}
 create table if not exists public.app_settings (
   key text primary key,
   value jsonb not null,
   updated_at timestamptz not null default now()
+);
+
+-- One row per person who has ever signed in — populated by the
+-- touch_profile() RPC below (called once per app load), never written to
+-- directly by the client. Lets an admin see every user and block one
+-- without needing a service-role key or the Supabase Admin API.
+create table if not exists public.profiles (
+  email text primary key,
+  name text not null default '',
+  first_seen timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  blocked boolean not null default false
 );
 
 -- ────────────────────────────────────────────────────────────────
@@ -34,6 +51,10 @@ create table if not exists public.app_settings (
 
 insert into public.app_settings (key, value)
 values ('admins', '{"emails": ["got.data@bananaandco.org"]}'::jsonb)
+on conflict (key) do nothing;
+
+insert into public.app_settings (key, value)
+values ('brands', '{"names": []}'::jsonb)
 on conflict (key) do nothing;
 
 insert into public.app_settings (key, value)
@@ -60,13 +81,21 @@ on conflict (key) do nothing;
 --    the domain here if it's ever different from the app's middleware.
 -- ────────────────────────────────────────────────────────────────
 
+-- security definer so the blocked-status lookup below always reads the
+-- real profiles row regardless of that table's own RLS policies.
 create or replace function public.is_org_member()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select coalesce(
-    (auth.jwt() ->> 'email') ilike '%@bananaandco.org',
+    (auth.jwt() ->> 'email') ilike '%@bananaandco.org'
+    and not exists (
+      select 1 from public.profiles p
+      where lower(p.email) = lower(auth.jwt() ->> 'email') and p.blocked
+    ),
     false
   );
 $$;
@@ -117,10 +146,69 @@ create policy "admins can update settings"
   on public.app_settings for update
   using (public.is_org_member() and public.is_admin());
 
+alter table public.profiles enable row level security;
+
+-- No direct insert policy: rows are only ever created via touch_profile()
+-- below, which runs as security definer so it bypasses RLS on write.
+drop policy if exists "self can read own profile" on public.profiles;
+create policy "self can read own profile"
+  on public.profiles for select
+  using (lower(email) = lower(auth.jwt() ->> 'email'));
+
+drop policy if exists "admins can read all profiles" on public.profiles;
+create policy "admins can read all profiles"
+  on public.profiles for select
+  using (public.is_org_member() and public.is_admin());
+
+drop policy if exists "admins can update profiles" on public.profiles;
+create policy "admins can update profiles"
+  on public.profiles for update
+  using (public.is_org_member() and public.is_admin())
+  with check (public.is_org_member() and public.is_admin());
+
+-- Called once per app load (see src/app/page.tsx) to record/refresh the
+-- caller's own profile row. Security definer so it can insert/update that
+-- row even though regular users have no direct insert/update policy on
+-- this table — it only ever touches name/last_seen, never `blocked`, so a
+-- blocked user calling this cannot un-block themselves.
+create or replace function public.touch_profile(p_name text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_email text := lower(auth.jwt() ->> 'email');
+begin
+  if v_email is null or v_email not ilike '%@bananaandco.org' then
+    raise exception 'not authorized';
+  end if;
+  insert into public.profiles (email, name, first_seen, last_seen, blocked)
+  values (v_email, coalesce(p_name, ''), now(), now(), false)
+  on conflict (email) do update
+    set name = excluded.name,
+        last_seen = now();
+end;
+$$;
+
+grant execute on function public.touch_profile(text) to authenticated;
+
 -- ────────────────────────────────────────────────────────────────
 -- 4. Realtime — lets everyone's screen update live when a teammate
 --    saves a batch or an admin changes the rules.
 -- ────────────────────────────────────────────────────────────────
 
-alter publication supabase_realtime add table public.uploads;
-alter publication supabase_realtime add table public.app_settings;
+-- Idempotent: ALTER PUBLICATION ... ADD TABLE errors if already a member,
+-- which it will be on every re-run of this script after the first.
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'uploads') then
+    alter publication supabase_realtime add table public.uploads;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'app_settings') then
+    alter publication supabase_realtime add table public.app_settings;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles') then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+end $$;

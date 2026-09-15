@@ -12,7 +12,7 @@ import {
   type CpmTier,
   type Rules,
 } from "@/lib/rules";
-import type { Upload } from "@/lib/types";
+import type { Profile, Upload } from "@/lib/types";
 import type { ToastApi } from "@/components/Toast";
 
 const CHECK_LABELS: Record<CheckKey, string> = {
@@ -48,25 +48,34 @@ function validEmail(v: string) {
 export default function AdminTab({
   supabase,
   admins,
+  brands,
   rules,
   uploads,
+  profiles,
   me,
   onAdminsChange,
+  onBrandsChange,
   onRulesChange,
   onUploadsChange,
+  onProfilesChange,
   toast,
 }: {
   supabase: SupabaseClient;
   admins: string[];
+  brands: string[];
   rules: Rules;
   uploads: Upload[];
+  profiles: Profile[];
   me: string;
   onAdminsChange: (a: string[]) => void;
+  onBrandsChange: (b: string[]) => void;
   onRulesChange: (r: Rules) => void;
   onUploadsChange: (u: Upload[]) => void;
+  onProfilesChange: (p: Profile[]) => void;
   toast: ToastApi;
 }) {
   const [newAdmin, setNewAdmin] = useState("");
+  const [newBrand, setNewBrand] = useState("");
   const [rulesDraft, setRulesDraft] = useState<Rules>(rules);
   const [savingRules, setSavingRules] = useState(false);
   const [newOverrideType, setNewOverrideType] = useState("");
@@ -170,6 +179,43 @@ export default function AdminTab({
     await saveAdmins(admins.filter((e) => e !== em));
   }
 
+  async function saveBrands(next: string[]) {
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key: "brands", value: { names: next } }, { onConflict: "key" });
+    if (error) {
+      toast(`บันทึกไม่สำเร็จ: ${error.message}`, "err");
+      return;
+    }
+    onBrandsChange(next);
+    toast("อัปเดตรายชื่อแบรนด์แล้ว");
+  }
+
+  async function addBrand() {
+    const b = newBrand.trim();
+    if (!b) return;
+    if (brands.some((x) => x.toLowerCase() === b.toLowerCase())) {
+      toast("มีแบรนด์นี้อยู่แล้ว", "err");
+      return;
+    }
+    await saveBrands([...brands, b]);
+    setNewBrand("");
+  }
+
+  async function removeBrand(b: string) {
+    await saveBrands(brands.filter((x) => x !== b));
+  }
+
+  async function setBlocked(email: string, blocked: boolean) {
+    const { error } = await supabase.from("profiles").update({ blocked }).eq("email", email);
+    if (error) {
+      toast(`อัปเดตไม่สำเร็จ: ${error.message}`, "err");
+      return;
+    }
+    onProfilesChange(profiles.map((p) => (p.email === email ? { ...p, blocked } : p)));
+    toast(blocked ? "บล็อคผู้ใช้นี้แล้ว" : "ปลดบล็อคแล้ว");
+  }
+
   async function saveRules() {
     setSavingRules(true);
     const { error } = await supabase
@@ -235,6 +281,33 @@ export default function AdminTab({
               className="flex-1 px-3 py-2 rounded-lg border border-lineStrong bg-surface text-sm"
             />
             <button onClick={addAdmin} className="rounded-lg bg-accent text-accentInk px-3.5 py-2 text-[13px] font-semibold">
+              เพิ่ม
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-surface border border-line rounded-card shadow-sm p-5">
+          <h2 className="text-[17px] font-semibold font-display mb-1">จัดการแบรนด์</h2>
+          <p className="text-inkDim text-[13.5px] mb-3">แบรนด์ในรายการนี้จะให้เลือกตอนอัปโหลดข้อมูล (บังคับเลือก 1 แบรนด์เสมอ)</p>
+          {brands.length === 0 && <p className="text-inkFaint text-[13px] mb-2">ยังไม่มีแบรนด์ — เพิ่มอย่างน้อย 1 แบรนด์ก่อนให้ทีมอัปโหลดข้อมูลได้</p>}
+          <div className="flex flex-col gap-2">
+            {brands.map((b) => (
+              <div key={b} className="flex items-center gap-2.5 px-3 py-2 bg-surface2 rounded-lg text-[13.5px]">
+                <span className="flex-1">{b}</span>
+                <button onClick={() => removeBrand(b)} className="text-bad border border-bad/30 rounded-md px-2.5 py-1 text-[12px] font-semibold">
+                  ลบ
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-3">
+            <input
+              value={newBrand}
+              onChange={(e) => setNewBrand(e.target.value)}
+              placeholder="เพิ่มชื่อแบรนด์"
+              className="flex-1 px-3 py-2 rounded-lg border border-lineStrong bg-surface text-sm"
+            />
+            <button onClick={addBrand} className="rounded-lg bg-accent text-accentInk px-3.5 py-2 text-[13px] font-semibold">
               เพิ่ม
             </button>
           </div>
@@ -393,6 +466,55 @@ export default function AdminTab({
             {savingRules ? "กำลังบันทึก…" : "บันทึกเกณฑ์"}
           </button>
         </div>
+      </div>
+
+      <div className="bg-surface border border-line rounded-card shadow-sm p-5">
+        <h2 className="text-[17px] font-semibold font-display mb-1">ผู้ใช้งานทั้งหมด</h2>
+        <p className="text-inkDim text-[13.5px] mb-3">ทุกคนที่เคยลงชื่อเข้าใช้ระบบนี้ — บล็อคได้ถ้าไม่ต้องการให้เข้าใช้งานอีก</p>
+        {profiles.length === 0 ? (
+          <p className="text-inkFaint text-[13px]">ยังไม่มีข้อมูล</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="border-collapse w-full text-[13px]">
+              <thead>
+                <tr>
+                  <th className="th">ชื่อ</th>
+                  <th className="th">อีเมล</th>
+                  <th className="th">เข้าใช้ครั้งแรก</th>
+                  <th className="th">เข้าใช้ล่าสุด</th>
+                  <th className="th">สถานะ</th>
+                  <th className="th"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {profiles.map((p) => (
+                  <tr key={p.email} className="hover:bg-surface2">
+                    <td className="td">{p.name || "—"}</td>
+                    <td className="td font-mono">
+                      {p.email} {p.email === me && <span className="text-[10.5px] bg-accentDim text-accent px-1.5 py-0.5 rounded-full font-bold ml-1">คุณ</span>}
+                    </td>
+                    <td className="td text-inkFaint">{fmtDate(p.first_seen)}</td>
+                    <td className="td text-inkFaint">{fmtDate(p.last_seen)}</td>
+                    <td className="td">
+                      {p.blocked ? <span className="text-bad font-semibold">ถูกบล็อค</span> : <span className="text-good font-semibold">ปกติ</span>}
+                    </td>
+                    <td className="td">
+                      <button
+                        onClick={() => setBlocked(p.email, !p.blocked)}
+                        disabled={p.email === me}
+                        className={`rounded-md px-2.5 py-1 text-[12px] font-semibold border disabled:opacity-40 ${
+                          p.blocked ? "text-good border-good/30" : "text-bad border-bad/30"
+                        }`}
+                      >
+                        {p.blocked ? "ปลดบล็อค" : "บล็อค"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="bg-surface border border-line rounded-card shadow-sm p-5">

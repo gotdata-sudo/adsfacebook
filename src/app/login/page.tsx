@@ -15,7 +15,9 @@ export default function LoginPage() {
 function LoginForm() {
   const [loading, setLoading] = useState(false);
   const params = useSearchParams();
-  const domainError = params.get("error") === "domain";
+  const errorCode = params.get("error");
+  const domainError = errorCode === "domain";
+  const blockedError = errorCode === "blocked";
 
   async function signIn() {
     setLoading(true);
@@ -46,6 +48,11 @@ function LoginForm() {
         {domainError && (
           <div className="mb-4 text-sm rounded-lg border border-bad px-3 py-2 bg-badBg text-bad">
             บัญชีนี้ไม่ได้รับอนุญาต — ใช้ได้เฉพาะอีเมล @bananaandco.org เท่านั้น
+          </div>
+        )}
+        {blockedError && (
+          <div className="mb-4 text-sm rounded-lg border border-bad px-3 py-2 bg-badBg text-bad">
+            บัญชีนี้ถูกระงับการใช้งาน — ติดต่อผู้ดูแลระบบหากคิดว่าไม่ถูกต้อง
           </div>
         )}
 

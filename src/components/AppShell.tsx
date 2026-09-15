@@ -3,57 +3,79 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_RULES, type Rules } from "@/lib/rules";
-import type { Upload } from "@/lib/types";
+import type { Profile, Upload } from "@/lib/types";
 import UploadTab from "@/components/UploadTab";
 import RankingTab from "@/components/RankingTab";
 import HistoryTab from "@/components/HistoryTab";
+import DashboardTab from "@/components/DashboardTab";
 import AdminTab from "@/components/AdminTab";
 import { useToast, ToastHost } from "@/components/Toast";
 
-type Tab = "upload" | "ranking" | "history" | "admin";
+type Tab = "upload" | "ranking" | "history" | "dashboard" | "admin";
 
 export default function AppShell({
   user,
   initialAdmins,
+  initialBrands,
   initialRules,
   initialUploads,
+  initialProfiles,
   isAdmin,
 }: {
   user: { email: string; name: string };
   initialAdmins: string[];
+  initialBrands: string[];
   initialRules: Rules;
   initialUploads: Upload[];
+  initialProfiles: Profile[];
   isAdmin: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<Tab>("upload");
   const [rankingScope, setRankingScope] = useState<string>("__all__");
   const [admins, setAdmins] = useState<string[]>(initialAdmins);
+  const [brands, setBrands] = useState<string[]>(initialBrands);
   const [rules, setRules] = useState<Rules>(initialRules);
   const [uploads, setUploads] = useState<Upload[]>(initialUploads);
+  const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
   const amAdmin = admins.includes(user.email.toLowerCase()) || isAdmin;
   const toast = useToast();
 
   const refreshUploads = useCallback(async () => {
     const { data, error } = await supabase
       .from("uploads")
-      .select("id, uploader_email, uploader_name, created_at, note, rows, asset_paths")
+      .select("id, uploader_email, uploader_name, created_at, note, brand, rows, asset_paths")
       .order("created_at", { ascending: false })
       .limit(200);
     if (!error && data) setUploads(data as unknown as Upload[]);
   }, [supabase]);
 
   const refreshSettings = useCallback(async () => {
-    const [{ data: adminsRow }, { data: rulesRow }] = await Promise.all([
+    const [{ data: adminsRow }, { data: brandsRow }, { data: rulesRow }] = await Promise.all([
       supabase.from("app_settings").select("value").eq("key", "admins").maybeSingle(),
+      supabase.from("app_settings").select("value").eq("key", "brands").maybeSingle(),
       supabase.from("app_settings").select("value").eq("key", "rules").maybeSingle(),
     ]);
     if (adminsRow?.value) {
       const emails = ((adminsRow.value as { emails?: string[] }).emails ?? []).map((e) => e.toLowerCase());
       if (emails.length) setAdmins(emails);
     }
+    if (brandsRow?.value) setBrands((brandsRow.value as { names?: string[] }).names ?? []);
     if (rulesRow?.value) setRules({ ...DEFAULT_RULES, ...(rulesRow.value as Partial<Rules>) });
   }, [supabase]);
+
+  const refreshProfiles = useCallback(async () => {
+    if (!amAdmin) return;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("email, name, first_seen, last_seen, blocked")
+      .order("last_seen", { ascending: false });
+    if (!error && data) setProfiles(data as Profile[]);
+  }, [supabase, amAdmin]);
+
+  useEffect(() => {
+    if (amAdmin) refreshProfiles();
+  }, [amAdmin, refreshProfiles]);
 
   useEffect(() => {
     const channel = supabase
@@ -64,11 +86,14 @@ export default function AppShell({
       .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, () => {
         refreshSettings();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
+        refreshProfiles();
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, refreshUploads, refreshSettings]);
+  }, [supabase, refreshUploads, refreshSettings, refreshProfiles]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -84,6 +109,7 @@ export default function AppShell({
     { key: "upload", label: "อัปโหลด & วิเคราะห์" },
     { key: "ranking", label: "เส้นทางที่ดีที่สุด" },
     { key: "history", label: "ประวัติ" },
+    { key: "dashboard", label: "แดชบอร์ด" },
     ...(amAdmin ? ([{ key: "admin", label: "ผู้ดูแลระบบ" }] as { key: Tab; label: string }[]) : []),
   ];
 
@@ -135,22 +161,27 @@ export default function AppShell({
 
       <main className="max-w-[1180px] mx-auto px-5 py-7">
         {tab === "upload" && (
-          <UploadTab user={user} rules={rules} supabase={supabase} onSaved={refreshUploads} toast={toast} />
+          <UploadTab user={user} rules={rules} brands={brands} supabase={supabase} onSaved={refreshUploads} toast={toast} />
         )}
         {tab === "ranking" && (
           <RankingTab uploads={uploads} rules={rules} scope={rankingScope} setScope={setRankingScope} />
         )}
         {tab === "history" && <HistoryTab uploads={uploads} rules={rules} me={user.email} onOpen={openBatchInRanking} />}
+        {tab === "dashboard" && <DashboardTab uploads={uploads} rules={rules} />}
         {tab === "admin" && amAdmin && (
           <AdminTab
             supabase={supabase}
             admins={admins}
+            brands={brands}
             rules={rules}
             uploads={uploads}
+            profiles={profiles}
             me={user.email}
             onAdminsChange={setAdmins}
+            onBrandsChange={setBrands}
             onRulesChange={setRules}
             onUploadsChange={setUploads}
+            onProfilesChange={setProfiles}
             toast={toast}
           />
         )}

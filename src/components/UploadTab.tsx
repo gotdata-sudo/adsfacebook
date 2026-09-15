@@ -32,18 +32,21 @@ function newId() {
 export default function UploadTab({
   user,
   rules,
+  brands,
   supabase,
   onSaved,
   toast,
 }: {
   user: { email: string; name: string };
   rules: Rules;
+  brands: string[];
   supabase: SupabaseClient;
   onSaved: () => void;
   toast: ToastApi;
 }) {
   const [rows, setRows] = useState<AdRow[]>([]);
   const [note, setNote] = useState("");
+  const [brand, setBrand] = useState("");
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,6 +90,10 @@ export default function UploadTab({
   }
 
   async function save() {
+    if (!brand) {
+      toast("กรุณาเลือกแบรนด์ก่อนบันทึก", "err");
+      return;
+    }
     const named = rows.filter((r) => r.adsetName && r.adsetName.trim() !== "");
     const ready = named.filter((r) => (r.amountSpent ?? 0) > 0 && (r.impressions ?? 0) > 0);
     if (!ready.length) {
@@ -108,6 +115,7 @@ export default function UploadTab({
       uploader_email: user.email,
       uploader_name: user.name,
       note: note.trim() || null,
+      brand,
       rows: cleanRows,
       asset_paths: [],
     });
@@ -131,14 +139,39 @@ export default function UploadTab({
           &quot;อายุแอด&quot; และ &quot;รอบขยับราคา&quot; ใช้ประกอบการตัดสินสถานะ ส่วน &quot;ประเภทผลลัพธ์&quot; (เช่น
           conversions:subscribe_website) ใช้เลือกเกณฑ์เฉพาะประเภทที่ตั้งไว้ในหน้าผู้ดูแลระบบ ถ้าไม่กรอกจะใช้เกณฑ์ค่าเริ่มต้น
         </p>
-        <div className="mb-4">
-          <label className="block text-[13px] font-semibold text-inkDim mb-1.5">หมายเหตุชุดข้อมูล (ไม่บังคับ)</label>
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="เช่น แคมเปญเปิดตัว Q4 / บัญชีโฆษณา A"
-            className="w-full sm:max-w-md px-3 py-2.5 rounded-lg border border-lineStrong bg-surface text-sm"
-          />
+        <div className="mb-4 flex flex-col sm:flex-row gap-4">
+          <div>
+            <label className="block text-[13px] font-semibold text-inkDim mb-1.5">
+              แบรนด์ <span className="text-bad">*</span>
+            </label>
+            {brands.length === 0 ? (
+              <p className="text-bad text-[12.5px] max-w-xs">
+                ยังไม่มีแบรนด์ให้เลือก — ให้แอดมินเพิ่มแบรนด์ในหน้าผู้ดูแลระบบก่อน
+              </p>
+            ) : (
+              <select
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                className="px-3 py-2.5 rounded-lg border border-lineStrong bg-surface text-sm min-w-[200px]"
+              >
+                <option value="">เลือกแบรนด์…</option>
+                {brands.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="flex-1">
+            <label className="block text-[13px] font-semibold text-inkDim mb-1.5">หมายเหตุชุดข้อมูล (ไม่บังคับ)</label>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="เช่น แคมเปญเปิดตัว Q4 / บัญชีโฆษณา A"
+              className="w-full sm:max-w-md px-3 py-2.5 rounded-lg border border-lineStrong bg-surface text-sm"
+            />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2.5">
           <button onClick={addBlank} className="rounded-lg border border-lineStrong px-4 py-2.5 text-sm font-semibold">
