@@ -8,6 +8,7 @@ export type AdRow = {
   id: string;
   adsetName: string;
   campaignName: string | null;
+  resultType: string | null;
   amountSpent: number | null;
   impressions: number | null;
   cpm: number | null;
@@ -22,25 +23,58 @@ export type AdRow = {
   bidAdjustmentRound: number | null;
 };
 
-export type Rules = {
-  cpmMin: number;
-  cpmMax: number;
-  cpmDayCutoff: number;
+// CPM target band for ad sets whose age (in days) falls in [minAgeDays, maxAgeDays].
+// maxAgeDays === null means "no upper bound" (covers everything above minAgeDays).
+export type CpmTier = {
+  id: string;
+  minAgeDays: number;
+  maxAgeDays: number | null;
+  min: number;
+  max: number;
+};
+
+export type CheckKey = "cpm" | "ctr" | "freq" | "cpc" | "rate" | "eng";
+
+export type CheckWeights = Record<CheckKey, { fail: number; warn: number }>;
+
+// The thresholds that can be overridden per result type (e.g. a "lead" ad set
+// judged by different CTR/frequency targets than a "traffic" one). The
+// top-level Rules fields with the same names ARE the default profile.
+export type ResultTypeProfile = {
   ctrMin: number;
   ctrMax: number;
-  cpcSkipRounds: number;
-  signupCaptureRate: number;
-  targetCostPerResult: number | null;
   freqMin: number;
   freqMax: number;
+  targetCostPerResult: number | null;
   resultRateWarnAgeDays: number;
   resultRateWarnPct: number;
+  engagementMin: number | null;
+  engagementMax: number | null;
+};
+
+export type Rules = ResultTypeProfile & {
+  cpmTiers: CpmTier[];
+  cpcSkipRounds: number;
+  signupCaptureRate: number;
+  weights: CheckWeights;
+  // Keyed by the exact "result type" string (e.g. "conversions:subscribe_website").
+  // A present entry is a COMPLETE profile that fully replaces the default one —
+  // there is no per-field inheritance, so editing one starts from a clone of
+  // the default profile.
+  resultTypeOverrides: Record<string, ResultTypeProfile>;
+};
+
+export const DEFAULT_CHECK_WEIGHTS: CheckWeights = {
+  cpm: { fail: 30, warn: 12 },
+  ctr: { fail: 30, warn: 12 },
+  freq: { fail: 30, warn: 12 },
+  cpc: { fail: 30, warn: 12 },
+  rate: { fail: 30, warn: 12 },
+  eng: { fail: 30, warn: 12 },
 };
 
 export const DEFAULT_RULES: Rules = {
-  cpmMin: 300,
-  cpmMax: 600,
-  cpmDayCutoff: 1,
+  cpmTiers: [{ id: "tier-1", minAgeDays: 0, maxAgeDays: 1, min: 300, max: 600 }],
   ctrMin: 0.8,
   ctrMax: 1.25,
   cpcSkipRounds: 3,
@@ -50,25 +84,58 @@ export const DEFAULT_RULES: Rules = {
   freqMax: 9,
   resultRateWarnAgeDays: 3,
   resultRateWarnPct: 30,
+  engagementMin: null,
+  engagementMax: null,
+  weights: DEFAULT_CHECK_WEIGHTS,
+  resultTypeOverrides: {},
 };
 
-export const RULES_FIELDS: { key: keyof Rules; label: string; step: string; nullable?: boolean }[] = [
-  { key: "cpmMin", label: "CPM ต่ำสุด (บาท) — เกณฑ์วันแรก", step: "1" },
-  { key: "cpmMax", label: "CPM สูงสุด (บาท) — เกณฑ์วันแรก", step: "1" },
-  { key: "cpmDayCutoff", label: "ใช้เกณฑ์ CPM ถึงอายุแอด ≤ (วัน)", step: "1" },
+export const GLOBAL_RULES_FIELDS: { key: "cpcSkipRounds" | "signupCaptureRate"; label: string; step: string }[] = [
+  { key: "cpcSkipRounds", label: "จำนวนรอบขยับราคาที่ยังไม่ตัดสิน", step: "1" },
+  { key: "signupCaptureRate", label: "สัดส่วนหัวสมัครที่ใช้คิดต้นทุนปรับ (0–1)", step: "0.01" },
+];
+
+export const PROFILE_FIELDS: { key: keyof ResultTypeProfile; label: string; step: string; nullable?: boolean }[] = [
   { key: "ctrMin", label: "CTR ต่ำสุดที่ยอมรับ (%)", step: "0.01" },
   { key: "ctrMax", label: "CTR สูงสุดของช่วงปกติ (%)", step: "0.01" },
   { key: "freqMin", label: "ความถี่ต่ำสุดที่เริ่มนิ่ง", step: "0.01" },
   { key: "freqMax", label: "ความถี่ห้ามเกิน", step: "0.01" },
-  { key: "cpcSkipRounds", label: "จำนวนรอบขยับราคาที่ยังไม่ตัดสิน", step: "1" },
-  { key: "signupCaptureRate", label: "สัดส่วนหัวสมัครที่ใช้คิดต้นทุนปรับ (0–1)", step: "0.01" },
   { key: "targetCostPerResult", label: "เป้าต้นทุน/ผลลัพธ์ปรับ (บาท, เว้นว่าง = ไม่ตัดสิน)", step: "1", nullable: true },
   { key: "resultRateWarnAgeDays", label: "เตือนอัตราผลลัพธ์/คลิก เมื่ออายุแอด ≥ (วัน)", step: "1" },
   { key: "resultRateWarnPct", label: "เตือนเมื่ออัตราผลลัพธ์/คลิกเกิน (%)", step: "1" },
+  { key: "engagementMin", label: "Engagement ต่ำสุดที่ยอมรับ (%, เว้นว่าง = ไม่ตัดสิน)", step: "0.01", nullable: true },
+  { key: "engagementMax", label: "Engagement สูงสุดของช่วงปกติ (%, เว้นว่าง = ไม่ตัดสิน)", step: "0.01", nullable: true },
 ];
 
+export function defaultProfile(rules: Rules): ResultTypeProfile {
+  return {
+    ctrMin: rules.ctrMin,
+    ctrMax: rules.ctrMax,
+    freqMin: rules.freqMin,
+    freqMax: rules.freqMax,
+    targetCostPerResult: rules.targetCostPerResult,
+    resultRateWarnAgeDays: rules.resultRateWarnAgeDays,
+    resultRateWarnPct: rules.resultRateWarnPct,
+    engagementMin: rules.engagementMin,
+    engagementMax: rules.engagementMax,
+  };
+}
+
+function resolveProfile(rules: Rules, resultType: string | null): ResultTypeProfile {
+  if (resultType && rules.resultTypeOverrides[resultType]) return rules.resultTypeOverrides[resultType];
+  return defaultProfile(rules);
+}
+
+function resolveCpmTier(tiers: CpmTier[], adAge: number): CpmTier | null {
+  const sorted = [...tiers].sort((a, b) => a.minAgeDays - b.minAgeDays);
+  for (const t of sorted) {
+    if (adAge >= t.minAgeDays && (t.maxAgeDays === null || adAge <= t.maxAgeDays)) return t;
+  }
+  return null;
+}
+
 export type CheckStatus = "pass" | "good" | "warn" | "fail" | "info";
-export type Check = { key: string; status: CheckStatus; label: string; detail: string };
+export type Check = { key: CheckKey; status: CheckStatus; label: string; detail: string };
 export type Verdict = "good" | "warn" | "bad" | "unknown";
 
 export type Evaluation = {
@@ -104,6 +171,7 @@ export function evaluateRow(r: AdRow, rules: Rules): Evaluation {
   const results = n(r.results);
   const adAge = hasVal(r.adAgeDays) ? n(r.adAgeDays) : 1;
   const round = hasVal(r.bidAdjustmentRound) ? n(r.bidAdjustmentRound) : 0;
+  const profile = resolveProfile(rules, r.resultType);
 
   const cpm = hasVal(r.cpm) ? n(r.cpm) : impressions > 0 ? (spend / impressions) * 1000 : null;
   const cpc = hasVal(r.cpc) ? n(r.cpc) : linkClicks > 0 ? spend / linkClicks : null;
@@ -114,26 +182,25 @@ export function evaluateRow(r: AdRow, rules: Rules): Evaluation {
 
   const checks: Check[] = [];
 
-  if (adAge <= rules.cpmDayCutoff) {
-    if (cpm === null) {
-      checks.push({ key: "cpm", status: "info", label: "CPM", detail: "ไม่มีข้อมูลพอคำนวณ" });
-    } else if (cpm < rules.cpmMin) {
-      checks.push({ key: "cpm", status: "good", label: "CPM", detail: `${fmt(cpm)} ต่ำกว่าช่วงเป้าหมาย (${rules.cpmMin}–${rules.cpmMax}) ยิ่งต่ำยิ่งดี` });
-    } else if (cpm <= rules.cpmMax) {
-      checks.push({ key: "cpm", status: "pass", label: "CPM", detail: `${fmt(cpm)} อยู่ในช่วงเป้าหมายวันแรก (${rules.cpmMin}–${rules.cpmMax})` });
-    } else {
-      checks.push({ key: "cpm", status: "warn", label: "CPM", detail: `${fmt(cpm)} สูงกว่าช่วงเป้าหมาย (${rules.cpmMin}–${rules.cpmMax}) ต้นทุนการมองเห็นแพง` });
-    }
+  const tier = resolveCpmTier(rules.cpmTiers, adAge);
+  if (!tier) {
+    checks.push({ key: "cpm", status: "info", label: "CPM", detail: `${cpm === null ? "—" : fmt(cpm)} (ไม่มีเกณฑ์ช่วงอายุนี้)` });
+  } else if (cpm === null) {
+    checks.push({ key: "cpm", status: "info", label: "CPM", detail: "ไม่มีข้อมูลพอคำนวณ" });
+  } else if (cpm < tier.min) {
+    checks.push({ key: "cpm", status: "good", label: "CPM", detail: `${fmt(cpm)} ต่ำกว่าช่วงเป้าหมาย (${tier.min}–${tier.max}) ยิ่งต่ำยิ่งดี` });
+  } else if (cpm <= tier.max) {
+    checks.push({ key: "cpm", status: "pass", label: "CPM", detail: `${fmt(cpm)} อยู่ในช่วงเป้าหมาย (${tier.min}–${tier.max}) สำหรับอายุแอด ${adAge} วัน` });
   } else {
-    checks.push({ key: "cpm", status: "info", label: "CPM", detail: `${cpm === null ? "—" : fmt(cpm)} (เลยวันแรกแล้ว ไม่ใช้เกณฑ์นี้ตัดสิน)` });
+    checks.push({ key: "cpm", status: "warn", label: "CPM", detail: `${fmt(cpm)} สูงกว่าช่วงเป้าหมาย (${tier.min}–${tier.max}) ต้นทุนการมองเห็นแพง` });
   }
 
   if (!hasVal(r.ctrAll)) {
     checks.push({ key: "ctr", status: "info", label: "CTR", detail: "ไม่มีข้อมูล" });
   } else {
     const ctr = n(r.ctrAll);
-    if (ctr < rules.ctrMin) checks.push({ key: "ctr", status: "fail", label: "CTR", detail: `${fmt(ctr)}% ต่ำกว่าช่วง ${rules.ctrMin}–${rules.ctrMax}% เนื้อหาอาจไม่ดึงดูด` });
-    else if (ctr <= rules.ctrMax) checks.push({ key: "ctr", status: "pass", label: "CTR", detail: `${fmt(ctr)}% อยู่ในช่วงปกติ ${rules.ctrMin}–${rules.ctrMax}%` });
+    if (ctr < profile.ctrMin) checks.push({ key: "ctr", status: "fail", label: "CTR", detail: `${fmt(ctr)}% ต่ำกว่าช่วง ${profile.ctrMin}–${profile.ctrMax}% เนื้อหาอาจไม่ดึงดูด` });
+    else if (ctr <= profile.ctrMax) checks.push({ key: "ctr", status: "pass", label: "CTR", detail: `${fmt(ctr)}% อยู่ในช่วงปกติ ${profile.ctrMin}–${profile.ctrMax}%` });
     else checks.push({ key: "ctr", status: "good", label: "CTR", detail: `${fmt(ctr)}% สูงกว่าช่วงปกติ ยิ่งสูงยิ่งดี` });
   }
 
@@ -141,9 +208,9 @@ export function evaluateRow(r: AdRow, rules: Rules): Evaluation {
     checks.push({ key: "freq", status: "info", label: "ความถี่", detail: "ไม่มีข้อมูล" });
   } else {
     const f = n(r.frequency);
-    if (f > rules.freqMax) checks.push({ key: "freq", status: "fail", label: "ความถี่", detail: `${fmt(f)} เกิน ${rules.freqMax} เสี่ยงหลุดไปหากลุ่มเพื่อนของออดิเอนซ์เดิม` });
-    else if (f < rules.freqMin) checks.push({ key: "freq", status: "warn", label: "ความถี่", detail: `${fmt(f)} ยังต่ำกว่า ${rules.freqMin} ยังไม่นิ่ง/ยังใหม่` });
-    else checks.push({ key: "freq", status: "pass", label: "ความถี่", detail: `${fmt(f)} อยู่ในช่วงปกติ (${rules.freqMin}–${rules.freqMax}) ถ้าเป็นคนเดิมยิ่งดี` });
+    if (f > profile.freqMax) checks.push({ key: "freq", status: "fail", label: "ความถี่", detail: `${fmt(f)} เกิน ${profile.freqMax} เสี่ยงหลุดไปหากลุ่มเพื่อนของออดิเอนซ์เดิม` });
+    else if (f < profile.freqMin) checks.push({ key: "freq", status: "warn", label: "ความถี่", detail: `${fmt(f)} ยังต่ำกว่า ${profile.freqMin} ยังไม่นิ่ง/ยังใหม่` });
+    else checks.push({ key: "freq", status: "pass", label: "ความถี่", detail: `${fmt(f)} อยู่ในช่วงปกติ (${profile.freqMin}–${profile.freqMax}) ถ้าเป็นคนเดิมยิ่งดี` });
   }
 
   const pct = Math.round((rules.signupCaptureRate || 0.8) * 100);
@@ -156,8 +223,8 @@ export function evaluateRow(r: AdRow, rules: Rules): Evaluation {
     });
   } else if (adjustedCostPerResult === null) {
     checks.push({ key: "cpc", status: "info", label: "ต้นทุน/ผลลัพธ์", detail: "ไม่มีข้อมูลผลลัพธ์พอคำนวณ" });
-  } else if (hasVal(rules.targetCostPerResult)) {
-    const t = n(rules.targetCostPerResult);
+  } else if (hasVal(profile.targetCostPerResult)) {
+    const t = n(profile.targetCostPerResult);
     if (adjustedCostPerResult > t) checks.push({ key: "cpc", status: "fail", label: "ต้นทุน/ผลลัพธ์", detail: `ต้นทุน/ผลลัพธ์ปรับ (${pct}%) ≈ ${fmt(adjustedCostPerResult)} บาท สูงกว่าเป้า ${fmt(t)} บาท` });
     else checks.push({ key: "cpc", status: "pass", label: "ต้นทุน/ผลลัพธ์", detail: `ต้นทุน/ผลลัพธ์ปรับ (${pct}%) ≈ ${fmt(adjustedCostPerResult)} บาท อยู่ในเป้า ${fmt(t)} บาท` });
   } else {
@@ -166,34 +233,49 @@ export function evaluateRow(r: AdRow, rules: Rules): Evaluation {
 
   if (resultRate === null) {
     checks.push({ key: "rate", status: "info", label: "อัตราผลลัพธ์/คลิก", detail: "ไม่มีข้อมูลคลิกลิงก์" });
-  } else if (adAge >= rules.resultRateWarnAgeDays && resultRate > rules.resultRateWarnPct) {
-    checks.push({ key: "rate", status: "warn", label: "อัตราผลลัพธ์/คลิก", detail: `${fmt(resultRate)}% หลังเปิดมา ${adAge} วัน สูงเกิน ${rules.resultRateWarnPct}% อาจเริ่มอิ่มตัว` });
+  } else if (adAge >= profile.resultRateWarnAgeDays && resultRate > profile.resultRateWarnPct) {
+    checks.push({ key: "rate", status: "warn", label: "อัตราผลลัพธ์/คลิก", detail: `${fmt(resultRate)}% หลังเปิดมา ${adAge} วัน สูงเกิน ${profile.resultRateWarnPct}% อาจเริ่มอิ่มตัว` });
   } else {
     checks.push({ key: "rate", status: "good", label: "อัตราผลลัพธ์/คลิก", detail: `${fmt(resultRate)}% ยิ่งสูงยิ่งดี` });
   }
 
-  if (hasVal(r.engagementRate)) {
-    checks.push({ key: "eng", status: "info", label: "อัตราการมีส่วนร่วม", detail: `${fmt(n(r.engagementRate))}% (ยังไม่ตั้งเกณฑ์ตัดสิน)` });
+  if (!hasVal(r.engagementRate)) {
+    checks.push({ key: "eng", status: "info", label: "อัตราการมีส่วนร่วม", detail: "ไม่มีข้อมูล" });
+  } else {
+    const eng = n(r.engagementRate);
+    if (profile.engagementMin === null && profile.engagementMax === null) {
+      checks.push({ key: "eng", status: "info", label: "อัตราการมีส่วนร่วม", detail: `${fmt(eng)}% (ยังไม่ตั้งเกณฑ์ตัดสิน)` });
+    } else if (hasVal(profile.engagementMin) && eng < n(profile.engagementMin)) {
+      checks.push({ key: "eng", status: "fail", label: "อัตราการมีส่วนร่วม", detail: `${fmt(eng)}% ต่ำกว่า ${fmt(profile.engagementMin)}% เนื้อหาอาจไม่ดึงดูด` });
+    } else if (hasVal(profile.engagementMax) && eng > n(profile.engagementMax)) {
+      checks.push({ key: "eng", status: "good", label: "อัตราการมีส่วนร่วม", detail: `${fmt(eng)}% สูงกว่า ${fmt(profile.engagementMax)}% ยิ่งสูงยิ่งดี` });
+    } else {
+      checks.push({ key: "eng", status: "pass", label: "อัตราการมีส่วนร่วม", detail: `${fmt(eng)}% อยู่ในช่วงปกติ` });
+    }
   }
 
-  const fails = checks.filter((c) => c.status === "fail").length;
-  const warns = checks.filter((c) => c.status === "warn").length;
+  const fails = checks.filter((c) => c.status === "fail");
+  const warns = checks.filter((c) => c.status === "warn");
+  const weightFor = (key: CheckKey) => rules.weights[key] ?? DEFAULT_CHECK_WEIGHTS[key];
+  const failScore = fails.reduce((sum, c) => sum + weightFor(c.key).fail, 0);
+  const warnScore = warns.reduce((sum, c) => sum + weightFor(c.key).warn, 0);
+
   let verdict: Verdict;
   let verdictLabel: string;
   if (impPerBaht === null) {
     verdict = "unknown";
     verdictLabel = "รอข้อมูล";
-  } else if (fails > 0) {
+  } else if (fails.length > 0) {
     verdict = "bad";
     verdictLabel = "ควรปิด";
-  } else if (warns > 0) {
+  } else if (warns.length > 0) {
     verdict = "warn";
     verdictLabel = "เฝ้าระวัง";
   } else {
     verdict = "good";
     verdictLabel = "เปิดต่อ";
   }
-  const score = impPerBaht === null ? null : Math.max(0, 100 - fails * 30 - warns * 12);
+  const score = impPerBaht === null ? null : Math.max(0, 100 - failScore - warnScore);
 
   return { cpm, cpc, costPerResult, impPerBaht, resultRate, adjustedCostPerResult, checks, verdict, verdictLabel, score };
 }
@@ -212,6 +294,7 @@ export function pickBest(rows: AdRow[], rules: Rules) {
 export const ROW_FIELDS: (keyof AdRow)[] = [
   "adsetName",
   "campaignName",
+  "resultType",
   "amountSpent",
   "impressions",
   "cpm",
@@ -231,6 +314,7 @@ export function blankRow(id: string): AdRow {
     id,
     adsetName: "",
     campaignName: null,
+    resultType: null,
     amountSpent: null,
     impressions: null,
     cpm: null,

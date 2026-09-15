@@ -79,7 +79,7 @@ export default function UploadTab({
     setRows((r) =>
       r.map((row) => {
         if (row.id !== id) return row;
-        const isText = field === "adsetName" || field === "campaignName";
+        const isText = field === "adsetName" || field === "campaignName" || field === "resultType";
         const value = isText ? raw : raw === "" ? null : parseFloat(raw);
         return { ...row, [field]: value as never };
       })
@@ -128,7 +128,8 @@ export default function UploadTab({
         <h2 className="text-[17px] font-semibold font-display mb-1">กรอกผลลัพธ์แอดเซ็ต</h2>
         <p className="text-inkDim text-[13.5px] mb-4">
           กรอกตัวเลขจาก Ads Manager ด้วยตนเอง (ระบบเวอร์ชันนี้ยังไม่มีการอ่านภาพอัตโนมัติ) — ช่อง
-          &quot;อายุแอด&quot; และ &quot;รอบขยับราคา&quot; ใช้ประกอบการตัดสินสถานะ
+          &quot;อายุแอด&quot; และ &quot;รอบขยับราคา&quot; ใช้ประกอบการตัดสินสถานะ ส่วน &quot;ประเภทผลลัพธ์&quot; (เช่น
+          conversions:subscribe_website) ใช้เลือกเกณฑ์เฉพาะประเภทที่ตั้งไว้ในหน้าผู้ดูแลระบบ ถ้าไม่กรอกจะใช้เกณฑ์ค่าเริ่มต้น
         </p>
         <div className="mb-4">
           <label className="block text-[13px] font-semibold text-inkDim mb-1.5">หมายเหตุชุดข้อมูล (ไม่บังคับ)</label>
@@ -164,6 +165,7 @@ export default function UploadTab({
                   <th className="th"></th>
                   <th className="th">ชื่อแอดเซ็ต</th>
                   <th className="th">แคมเปญ</th>
+                  <th className="th">ประเภทผลลัพธ์</th>
                   {NUM_COLS.map((c) => (
                     <th key={c.field} className="th">
                       {c.label}
@@ -197,6 +199,14 @@ export default function UploadTab({
                           onChange={(e) => updateField(row.id, "campaignName", e.target.value)}
                           placeholder="—"
                           className="cell-input font-body min-w-[100px]"
+                        />
+                      </td>
+                      <td className="td">
+                        <input
+                          value={row.resultType ?? ""}
+                          onChange={(e) => updateField(row.id, "resultType", e.target.value)}
+                          placeholder="เช่น conversions:subscribe_website"
+                          className="cell-input font-mono min-w-[140px]"
                         />
                       </td>
                       {NUM_COLS.map((c) => (

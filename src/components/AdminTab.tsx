@@ -2,9 +2,31 @@
 
 import { useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_RULES, RULES_FIELDS, evaluateRow, type Rules } from "@/lib/rules";
+import {
+  DEFAULT_RULES,
+  GLOBAL_RULES_FIELDS,
+  PROFILE_FIELDS,
+  defaultProfile,
+  evaluateRow,
+  type CheckKey,
+  type CpmTier,
+  type Rules,
+} from "@/lib/rules";
 import type { Upload } from "@/lib/types";
 import type { ToastApi } from "@/components/Toast";
+
+const CHECK_LABELS: Record<CheckKey, string> = {
+  cpm: "CPM",
+  ctr: "CTR",
+  freq: "ความถี่",
+  cpc: "ต้นทุน/ผลลัพธ์",
+  rate: "อัตราผลลัพธ์/คลิก",
+  eng: "อัตราการมีส่วนร่วม",
+};
+
+function newTierId() {
+  return `tier-${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+}
 
 function fmtDate(iso: string) {
   try {
@@ -47,6 +69,45 @@ export default function AdminTab({
   const [newAdmin, setNewAdmin] = useState("");
   const [rulesDraft, setRulesDraft] = useState<Rules>(rules);
   const [savingRules, setSavingRules] = useState(false);
+  const [newOverrideType, setNewOverrideType] = useState("");
+
+  function addTier() {
+    setRulesDraft((d) => {
+      const last = [...d.cpmTiers].sort((a, b) => a.minAgeDays - b.minAgeDays).at(-1);
+      const minAgeDays = last ? (last.maxAgeDays ?? last.minAgeDays + 1) : 0;
+      return { ...d, cpmTiers: [...d.cpmTiers, { id: newTierId(), minAgeDays, maxAgeDays: null, min: 300, max: 600 }] };
+    });
+  }
+  function updateTier(id: string, patch: Partial<CpmTier>) {
+    setRulesDraft((d) => ({ ...d, cpmTiers: d.cpmTiers.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+  }
+  function removeTier(id: string) {
+    setRulesDraft((d) => ({ ...d, cpmTiers: d.cpmTiers.filter((t) => t.id !== id) }));
+  }
+
+  function updateWeight(key: CheckKey, kind: "fail" | "warn", value: number) {
+    setRulesDraft((d) => ({ ...d, weights: { ...d.weights, [key]: { ...d.weights[key], [kind]: value } } }));
+  }
+
+  function addOverride() {
+    const type = newOverrideType.trim();
+    if (!type || rulesDraft.resultTypeOverrides[type]) return;
+    setRulesDraft((d) => ({ ...d, resultTypeOverrides: { ...d.resultTypeOverrides, [type]: defaultProfile(d) } }));
+    setNewOverrideType("");
+  }
+  function removeOverride(type: string) {
+    setRulesDraft((d) => {
+      const next = { ...d.resultTypeOverrides };
+      delete next[type];
+      return { ...d, resultTypeOverrides: next };
+    });
+  }
+  function updateOverrideField(type: string, key: string, value: number | null) {
+    setRulesDraft((d) => ({
+      ...d,
+      resultTypeOverrides: { ...d.resultTypeOverrides, [type]: { ...d.resultTypeOverrides[type], [key]: value } },
+    }));
+  }
 
   let totalRows = 0;
   const counts = { good: 0, warn: 0, bad: 0 };
@@ -127,7 +188,7 @@ export default function AdminTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <div className="bg-surface border border-line rounded-card shadow-sm p-5">
           <h2 className="text-[17px] font-semibold font-display mb-1">รายชื่อแอดมิน</h2>
           <p className="text-inkDim text-[13.5px] mb-3">อีเมลในรายการนี้จะมองเห็นแท็บ &quot;ผู้ดูแลระบบ&quot;</p>
@@ -159,33 +220,155 @@ export default function AdminTab({
           </div>
         </div>
 
-        <div className="bg-surface border border-line rounded-card shadow-sm p-5">
-          <h2 className="text-[17px] font-semibold font-display mb-1">เกณฑ์การวิเคราะห์</h2>
-          <p className="text-inkDim text-[13.5px] mb-3">ปรับช่วงตัวเลขที่ใช้ตัดสินสถานะแอดเซ็ตได้ตามหมายเหตุของทีม</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {RULES_FIELDS.map((f) => (
-              <div key={f.key}>
-                <label className="block text-[12.5px] font-semibold text-inkDim mb-1">{f.label}</label>
-                <input
-                  type="number"
-                  step={f.step}
-                  value={rulesDraft[f.key] ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setRulesDraft((d) => ({
-                      ...d,
-                      [f.key]: val === "" ? (f.nullable ? null : DEFAULT_RULES[f.key]) : parseFloat(val),
-                    }));
-                  }}
-                  className="w-full px-3 py-2 rounded-lg border border-lineStrong bg-surface text-sm font-mono"
-                />
-              </div>
-            ))}
+        <div className="bg-surface border border-line rounded-card shadow-sm p-5 flex flex-col gap-5">
+          <div>
+            <h2 className="text-[17px] font-semibold font-display mb-1">เกณฑ์การวิเคราะห์</h2>
+            <p className="text-inkDim text-[13.5px]">ปรับช่วงตัวเลขที่ใช้ตัดสินสถานะแอดเซ็ตได้ตามหมายเหตุของทีม</p>
           </div>
+
+          <div>
+            <h3 className="text-[13.5px] font-semibold mb-2">ทั่วไป</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {GLOBAL_RULES_FIELDS.map((f) => (
+                <NumberField
+                  key={f.key}
+                  label={f.label}
+                  step={f.step}
+                  value={rulesDraft[f.key]}
+                  onChange={(v) => setRulesDraft((d) => ({ ...d, [f.key]: v ?? DEFAULT_RULES[f.key] }))}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-[13.5px] font-semibold mb-1">ช่วง CPM ตามอายุแอด</h3>
+            <p className="text-inkFaint text-[12px] mb-2">
+              เพิ่มได้หลายช่วง เรียงตามอายุ (วัน) — เว้น &quot;ถึงวัน&quot; ว่างไว้ = ไม่จำกัดช่วงบน
+            </p>
+            <div className="flex flex-col gap-2">
+              {[...rulesDraft.cpmTiers]
+                .sort((a, b) => a.minAgeDays - b.minAgeDays)
+                .map((t) => (
+                  <div key={t.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end bg-surface2 border border-line rounded-lg p-2.5">
+                    <NumberField label="ตั้งแต่วัน" step="1" value={t.minAgeDays} onChange={(v) => updateTier(t.id, { minAgeDays: v ?? 0 })} />
+                    <NumberField label="ถึงวัน (ว่าง=ไม่จำกัด)" step="1" nullable value={t.maxAgeDays} onChange={(v) => updateTier(t.id, { maxAgeDays: v })} />
+                    <NumberField label="CPM ต่ำสุด" step="1" value={t.min} onChange={(v) => updateTier(t.id, { min: v ?? 0 })} />
+                    <NumberField label="CPM สูงสุด" step="1" value={t.max} onChange={(v) => updateTier(t.id, { max: v ?? 0 })} />
+                    <button onClick={() => removeTier(t.id)} className="text-bad border border-bad/30 rounded-md px-2.5 py-2 text-[12px] font-semibold h-fit">
+                      ลบช่วง
+                    </button>
+                  </div>
+                ))}
+            </div>
+            <button onClick={addTier} className="mt-2 rounded-lg border border-lineStrong px-3 py-1.5 text-[12.5px] font-semibold">
+              + เพิ่มช่วงอายุ
+            </button>
+          </div>
+
+          <div>
+            <h3 className="text-[13.5px] font-semibold mb-1">เกณฑ์ค่าเริ่มต้น (ใช้เมื่อไม่มีเกณฑ์เฉพาะประเภทผลลัพธ์)</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {PROFILE_FIELDS.map((f) => (
+                <NumberField
+                  key={f.key}
+                  label={f.label}
+                  step={f.step}
+                  nullable={f.nullable}
+                  value={rulesDraft[f.key]}
+                  onChange={(v) => setRulesDraft((d) => ({ ...d, [f.key]: v ?? (f.nullable ? null : DEFAULT_RULES[f.key]) }))}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-[13.5px] font-semibold mb-1">น้ำหนักคะแนนต่อเกณฑ์</h3>
+            <p className="text-inkFaint text-[12px] mb-2">คะแนนเริ่มที่ 100 แล้วหักตามน้ำหนักของเกณฑ์ที่ไม่ผ่าน/ต้องเฝ้าระวัง</p>
+            <div className="overflow-x-auto">
+              <table className="border-collapse text-[13px]">
+                <thead>
+                  <tr>
+                    <th className="th">เกณฑ์</th>
+                    <th className="th">หักเมื่อไม่ผ่าน (fail)</th>
+                    <th className="th">หักเมื่อเฝ้าระวัง (warn)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(Object.keys(CHECK_LABELS) as CheckKey[]).map((key) => (
+                    <tr key={key}>
+                      <td className="td">{CHECK_LABELS[key]}</td>
+                      <td className="td">
+                        <input
+                          type="number"
+                          step="1"
+                          value={rulesDraft.weights[key].fail}
+                          onChange={(e) => updateWeight(key, "fail", parseFloat(e.target.value) || 0)}
+                          className="cell-input font-mono w-20"
+                        />
+                      </td>
+                      <td className="td">
+                        <input
+                          type="number"
+                          step="1"
+                          value={rulesDraft.weights[key].warn}
+                          onChange={(e) => updateWeight(key, "warn", parseFloat(e.target.value) || 0)}
+                          className="cell-input font-mono w-20"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-[13.5px] font-semibold mb-1">เกณฑ์เฉพาะประเภทผลลัพธ์</h3>
+            <p className="text-inkFaint text-[12px] mb-2">
+              ชื่อประเภทต้องตรงกับค่าในคอลัมน์ &quot;ประเภทผลลัพธ์&quot; ของแถวข้อมูล (เช่น conversions:subscribe_website) เป๊ะๆ
+            </p>
+            <div className="flex flex-col gap-3">
+              {Object.entries(rulesDraft.resultTypeOverrides).map(([type, profile]) => (
+                <div key={type} className="border border-line rounded-xl p-3.5 bg-surface2">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="font-mono text-[13px] font-semibold">{type}</span>
+                    <button onClick={() => removeOverride(type)} className="text-bad border border-bad/30 rounded-md px-2.5 py-1 text-[12px] font-semibold">
+                      ลบเกณฑ์นี้
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {PROFILE_FIELDS.map((f) => (
+                      <NumberField
+                        key={f.key}
+                        label={f.label}
+                        step={f.step}
+                        nullable={f.nullable}
+                        value={profile[f.key]}
+                        onChange={(v) => updateOverrideField(type, f.key, v ?? (f.nullable ? null : 0))}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <input
+                value={newOverrideType}
+                onChange={(e) => setNewOverrideType(e.target.value)}
+                placeholder="ชื่อประเภทผลลัพธ์ เช่น conversions:subscribe_website"
+                className="flex-1 px-3 py-2 rounded-lg border border-lineStrong bg-surface text-sm font-mono"
+              />
+              <button onClick={addOverride} className="rounded-lg bg-accent text-accentInk px-3.5 py-2 text-[13px] font-semibold">
+                + เพิ่มเกณฑ์
+              </button>
+            </div>
+          </div>
+
           <button
             onClick={saveRules}
             disabled={savingRules}
-            className="mt-4 rounded-lg bg-accent text-accentInk px-3.5 py-2 text-[13px] font-semibold disabled:opacity-60"
+            className="rounded-lg bg-accent text-accentInk px-3.5 py-2 text-[13px] font-semibold disabled:opacity-60 w-fit"
           >
             {savingRules ? "กำลังบันทึก…" : "บันทึกเกณฑ์"}
           </button>
@@ -216,6 +399,36 @@ export default function AdminTab({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  step,
+  value,
+  nullable,
+  onChange,
+}: {
+  label: string;
+  step: string;
+  value: number | null;
+  nullable?: boolean;
+  onChange: (v: number | null) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-[12.5px] font-semibold text-inkDim mb-1">{label}</label>
+      <input
+        type="number"
+        step={step}
+        value={value ?? ""}
+        onChange={(e) => {
+          const val = e.target.value;
+          onChange(val === "" ? (nullable ? null : 0) : parseFloat(val));
+        }}
+        className="w-full px-3 py-2 rounded-lg border border-lineStrong bg-surface text-sm font-mono"
+      />
     </div>
   );
 }

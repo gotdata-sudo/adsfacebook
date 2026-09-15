@@ -38,11 +38,18 @@ on conflict (key) do nothing;
 
 insert into public.app_settings (key, value)
 values ('rules', '{
-  "cpmMin": 300, "cpmMax": 600, "cpmDayCutoff": 1,
+  "cpmTiers": [{"id": "tier-1", "minAgeDays": 0, "maxAgeDays": 1, "min": 300, "max": 600}],
   "ctrMin": 0.8, "ctrMax": 1.25,
   "cpcSkipRounds": 3, "signupCaptureRate": 0.8, "targetCostPerResult": null,
   "freqMin": 1.08, "freqMax": 9,
-  "resultRateWarnAgeDays": 3, "resultRateWarnPct": 30
+  "resultRateWarnAgeDays": 3, "resultRateWarnPct": 30,
+  "engagementMin": null, "engagementMax": null,
+  "weights": {
+    "cpm": {"fail": 30, "warn": 12}, "ctr": {"fail": 30, "warn": 12},
+    "freq": {"fail": 30, "warn": 12}, "cpc": {"fail": 30, "warn": 12},
+    "rate": {"fail": 30, "warn": 12}, "eng": {"fail": 30, "warn": 12}
+  },
+  "resultTypeOverrides": {}
 }'::jsonb)
 on conflict (key) do nothing;
 

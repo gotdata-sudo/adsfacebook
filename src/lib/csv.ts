@@ -76,6 +76,7 @@ export function parseFacebookAdsCsv(text: string, newId: () => string): FbCsvPar
 
   const col = {
     adSetName: findHeaderIndex(header, "ชื่อชุดโฆษณา"),
+    resultType: findHeaderIndex(header, "ตัวระบุผลลัพธ์"),
     amountSpent: findHeaderIndex(header, "จำนวนเงินที่ใช้จ่ายไป (THB)", "จำนวนเงินที่ใช้จ่ายไป"),
     impressions: findHeaderIndex(header, "อิมเพรสชัน"),
     results: findHeaderIndex(header, "ผลลัพธ์"),
@@ -107,6 +108,7 @@ export function parseFacebookAdsCsv(text: string, newId: () => string): FbCsvPar
     rows.push({
       ...base,
       adsetName,
+      resultType: col.resultType !== -1 ? (r[col.resultType]?.trim() || null) : null,
       amountSpent,
       impressions: toNum(r[col.impressions]),
       cpm: col.cpm !== -1 ? toNum(r[col.cpm]) : null,
