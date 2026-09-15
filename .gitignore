@@ -1,0 +1,23 @@
+## Next.js
+/.next/
+/out/
+
+## Node
+/node_modules/
+npm-debug.log*
+
+## Env
+.env
+.env.local
+.env*.local
+
+## TypeScript
+*.tsbuildinfo
+
+## Misc
+.DS_Store
+*.pem
+.vercel
+
+## Claude Code local settings
+.claude/settings.local.json

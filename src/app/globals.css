@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 245 247 244;
+  --surface: 255 255 255;
+  --surface-2: 235 239 234;
+  --ink: 17 26 23;
+  --ink-dim: 87 101 95;
+  --ink-faint: 138 150 145;
+  --line: 220 227 221;
+  --line-strong: 196 205 194;
+  --accent: 14 124 116;
+  --accent-ink: 255 255 255;
+  --accent-dim: 223 240 236;
+  --good: 31 138 76;
+  --good-bg: 228 245 234;
+  --warn: 173 122 12;
+  --warn-bg: 251 240 218;
+  --bad: 194 59 59;
+  --bad-bg: 251 230 229;
+  --info: 74 111 165;
+  --info-bg: 233 239 248;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.dark {
+  --bg: 11 20 18;
+  --surface: 16 28 25;
+  --surface-2: 22 36 31;
+  --ink: 233 242 238;
+  --ink-dim: 159 178 171;
+  --ink-faint: 108 127 120;
+  --line: 34 50 44;
+  --line-strong: 50 69 64;
+  --accent: 63 205 194;
+  --accent-ink: 4 32 28;
+  --accent-dim: 18 51 48;
+  --good: 72 201 126;
+  --good-bg: 18 51 33;
+  --warn: 230 177 74;
+  --warn-bg: 58 44 14;
+  --bad: 241 118 114;
+  --bad-bg: 58 24 23;
+  --info: 143 177 232;
+  --info-bg: 22 35 58;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg: 11 20 18;
+    --surface: 16 28 25;
+    --surface-2: 22 36 31;
+    --ink: 233 242 238;
+    --ink-dim: 159 178 171;
+    --ink-faint: 108 127 120;
+    --line: 34 50 44;
+    --line-strong: 50 69 64;
+    --accent: 63 205 194;
+    --accent-ink: 4 32 28;
+    --accent-dim: 18 51 48;
+    --good: 72 201 126;
+    --good-bg: 18 51 33;
+    --warn: 230 177 74;
+    --warn-bg: 58 44 14;
+    --bad: 241 118 114;
+    --bad-bg: 58 24 23;
+    --info: 143 177 232;
+    --info-bg: 22 35 58;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgb(var(--accent-dim));
+}
+
+.th {
+  text-align: left;
+  font-family: var(--font-kanit);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgb(var(--ink-faint));
+  background: rgb(var(--surface-2));
+  padding: 10px;
+  border-bottom: 1px solid rgb(var(--line));
+  white-space: nowrap;
+}
+.td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgb(var(--line));
+  vertical-align: middle;
+}
+.cell-input {
+  width: 100%;
+  padding: 6px 7px;
+  border-radius: 7px;
+  border: 1px solid rgb(var(--line-strong));
+  background: rgb(var(--surface));
+  color: rgb(var(--ink));
+  font-size: 12.5px;
+}
+.cell-input:focus {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 1px;
+}
