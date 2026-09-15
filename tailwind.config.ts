@@ -32,7 +32,7 @@ const config: Config = {
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        card: "14px",
+        card: "10px",
       },
     },
   },

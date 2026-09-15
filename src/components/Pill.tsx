@@ -9,7 +9,7 @@ const STYLES: Record<string, string> = {
 
 export function Pill({ status, label }: { status: "good" | "warn" | "fail" | "info"; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold border whitespace-nowrap ${STYLES[status]}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-bold border whitespace-nowrap ${STYLES[status]}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current flex-none" />
       {label}
     </span>

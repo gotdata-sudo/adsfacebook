@@ -131,13 +131,13 @@ export default function AppShell({
             </span>
             เส้นทางโฆษณา
           </div>
-          <nav className="flex gap-1 bg-surface2 p-1 rounded-[11px] flex-wrap">
+          <nav className="flex gap-1 flex-wrap">
             {tabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`px-3.5 py-2 rounded-lg text-[13.5px] font-semibold whitespace-nowrap ${
-                  tab === t.key ? "bg-surface text-ink shadow-sm" : "text-inkDim"
+                className={`px-3 py-2 border-b-2 text-[13.5px] font-semibold whitespace-nowrap transition-colors ${
+                  tab === t.key ? "border-accent text-ink" : "border-transparent text-inkFaint hover:text-inkDim"
                 }`}
               >
                 {t.label}
