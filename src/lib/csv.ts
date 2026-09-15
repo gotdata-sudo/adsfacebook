@@ -78,11 +78,12 @@ export function parseFacebookAdsCsv(text: string, newId: () => string): FbCsvPar
     adSetName: findHeaderIndex(header, "ชื่อชุดโฆษณา"),
     amountSpent: findHeaderIndex(header, "จำนวนเงินที่ใช้จ่ายไป (THB)", "จำนวนเงินที่ใช้จ่ายไป"),
     impressions: findHeaderIndex(header, "อิมเพรสชัน"),
-    reach: findHeaderIndex(header, "การเข้าถึง"),
     results: findHeaderIndex(header, "ผลลัพธ์"),
     costPerResult: findHeaderIndex(header, "ต้นทุนต่อผลลัพธ์"),
-    cpcAll: findHeaderIndex(header, "CPC (ทั้งหมด) (THB)", "CPC (ทั้งหมด)"),
+    cpm: findHeaderIndex(header, "CPM (ต้นทุนต่ออิมเพรสชั่น 1,000 ครั้ง) (THB)", "CPM ("),
+    ctrAll: findHeaderIndex(header, "CTR (ทั้งหมด)"),
     cpcLink: findHeaderIndex(header, "CPC (ต้นทุนต่อการคลิกลิงก์) (THB)", "CPC (ต้นทุนต่อการคลิกลิงก์)"),
+    frequency: findHeaderIndex(header, "ความถี่"),
   };
 
   const required: [string, number][] = [
@@ -94,63 +95,29 @@ export function parseFacebookAdsCsv(text: string, newId: () => string): FbCsvPar
   const missingColumns = required.filter(([, idx]) => idx === -1).map(([label]) => label);
   if (missingColumns.length) return { rows: [], missingColumns };
 
-  type Agg = {
-    adsetName: string;
-    amountSpent: number;
-    impressions: number;
-    reach: number;
-    results: number;
-    linkClicks: number;
-    allClicks: number;
-  };
-  const bySet = new Map<string, Agg>();
-
+  const rows: AdRow[] = [];
   for (const r of table.slice(1)) {
     const adsetName = (r[col.adSetName] ?? "").trim();
     if (!adsetName) continue;
-    const amountSpent = toNum(r[col.amountSpent]) ?? 0;
-    const impressions = toNum(r[col.impressions]) ?? 0;
-    const reach = col.reach !== -1 ? toNum(r[col.reach]) ?? 0 : 0;
-    const results = toNum(r[col.results]) ?? 0;
+    const amountSpent = toNum(r[col.amountSpent]);
     const cpcLink = col.cpcLink !== -1 ? toNum(r[col.cpcLink]) : null;
-    const cpcAll = col.cpcAll !== -1 ? toNum(r[col.cpcAll]) : null;
-    const linkClicks = cpcLink && cpcLink > 0 ? amountSpent / cpcLink : 0;
-    const allClicks = cpcAll && cpcAll > 0 ? amountSpent / cpcAll : 0;
+    const linkClicks = cpcLink && cpcLink > 0 && amountSpent ? Math.round(amountSpent / cpcLink) : null;
 
-    const agg = bySet.get(adsetName) ?? {
-      adsetName,
-      amountSpent: 0,
-      impressions: 0,
-      reach: 0,
-      results: 0,
-      linkClicks: 0,
-      allClicks: 0,
-    };
-    agg.amountSpent += amountSpent;
-    agg.impressions += impressions;
-    agg.reach += reach;
-    agg.results += results;
-    agg.linkClicks += linkClicks;
-    agg.allClicks += allClicks;
-    bySet.set(adsetName, agg);
-  }
-
-  const rows: AdRow[] = Array.from(bySet.values()).map((agg) => {
     const base = blankRow(newId());
-    return {
+    rows.push({
       ...base,
-      adsetName: agg.adsetName,
-      amountSpent: agg.amountSpent || null,
-      impressions: agg.impressions || null,
-      cpm: agg.impressions > 0 ? (agg.amountSpent / agg.impressions) * 1000 : null,
-      ctrAll: agg.impressions > 0 ? (agg.allClicks / agg.impressions) * 100 : null,
-      linkClicks: agg.linkClicks > 0 ? Math.round(agg.linkClicks) : null,
-      cpc: agg.linkClicks > 0 ? agg.amountSpent / agg.linkClicks : null,
-      frequency: agg.reach > 0 ? agg.impressions / agg.reach : null,
-      results: agg.results || null,
-      costPerResult: agg.results > 0 ? agg.amountSpent / agg.results : null,
-    };
-  });
+      adsetName,
+      amountSpent,
+      impressions: toNum(r[col.impressions]),
+      cpm: col.cpm !== -1 ? toNum(r[col.cpm]) : null,
+      ctrAll: col.ctrAll !== -1 ? toNum(r[col.ctrAll]) : null,
+      linkClicks,
+      cpc: cpcLink,
+      frequency: col.frequency !== -1 ? toNum(r[col.frequency]) : null,
+      results: toNum(r[col.results]),
+      costPerResult: col.costPerResult !== -1 ? toNum(r[col.costPerResult]) : null,
+    });
+  }
 
   return { rows, missingColumns: [] };
 }
