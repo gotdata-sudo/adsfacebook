@@ -116,10 +116,16 @@ $$;
 alter table public.uploads enable row level security;
 alter table public.app_settings enable row level security;
 
+-- Non-admins can only see their own uploads; admins see everyone's
+-- (needed for Ranking/History/Dashboard "org-wide" views and the admin tab).
 drop policy if exists "org members can read uploads" on public.uploads;
-create policy "org members can read uploads"
+drop policy if exists "org members can read own or all uploads" on public.uploads;
+create policy "org members can read own or all uploads"
   on public.uploads for select
-  using (public.is_org_member());
+  using (
+    public.is_org_member()
+    and (public.is_admin() or lower(uploader_email) = lower(auth.jwt() ->> 'email'))
+  );
 
 drop policy if exists "org members can insert uploads" on public.uploads;
 create policy "org members can insert uploads"
