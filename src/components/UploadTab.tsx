@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { blankRow, evaluateRow, ROW_FIELDS, type AdRow, type Rules } from "@/lib/rules";
+import { parseFacebookAdsCsv } from "@/lib/csv";
 import { VerdictPill } from "@/components/Pill";
 import PickBanner from "@/components/PickBanner";
 import type { ToastApi } from "@/components/Toast";
@@ -44,9 +45,32 @@ export default function UploadTab({
   const [rows, setRows] = useState<AdRow[]>([]);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function addBlank() {
     setRows((r) => [...r, blankRow(newId())]);
+  }
+
+  async function handleCsvFile(file: File) {
+    const text = await file.text();
+    const { rows: parsed, missingColumns } = parseFacebookAdsCsv(text, newId);
+    if (missingColumns.length) {
+      toast(`ไฟล์ CSV ขาดคอลัมน์ที่จำเป็น: ${missingColumns.join(", ")}`, "err");
+      return;
+    }
+    if (!parsed.length) {
+      toast("ไม่พบข้อมูลแอดเซ็ตในไฟล์ CSV", "err");
+      return;
+    }
+    setRows((r) => [...r, ...parsed]);
+    toast(`นำเข้า ${parsed.length} แอดเซ็ตจาก CSV เรียบร้อย — ตรวจสอบข้อมูลก่อนบันทึก`);
+  }
+
+  function onCsvInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    handleCsvFile(file).catch(() => toast("อ่านไฟล์ CSV ไม่สำเร็จ", "err"));
   }
   function removeRow(id: string) {
     setRows((r) => r.filter((x) => x.id !== id));
@@ -115,9 +139,18 @@ export default function UploadTab({
             className="w-full sm:max-w-md px-3 py-2.5 rounded-lg border border-lineStrong bg-surface text-sm"
           />
         </div>
-        <button onClick={addBlank} className="rounded-lg border border-lineStrong px-4 py-2.5 text-sm font-semibold">
-          + เพิ่มแถวแอดเซ็ต
-        </button>
+        <div className="flex flex-wrap gap-2.5">
+          <button onClick={addBlank} className="rounded-lg border border-lineStrong px-4 py-2.5 text-sm font-semibold">
+            + เพิ่มแถวแอดเซ็ต
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-lg border border-lineStrong px-4 py-2.5 text-sm font-semibold"
+          >
+            อัปโหลดไฟล์ CSV (Ads Manager)
+          </button>
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={onCsvInputChange} className="hidden" />
+        </div>
       </div>
 
       {rows.length > 0 && (

@@ -21,3 +21,9 @@ npm-debug.log*
 
 ## Claude Code local settings
 .claude/settings.local.json
+
+.vercel
+
+## Real ad account exports — never commit real business data
+sample-export.csv
+*.csv
